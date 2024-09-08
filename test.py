@@ -539,7 +539,7 @@ elif config('method').lower() == "deyo":
         (ac, ECE, MCE, brier, AUROC)
     )  
 
-elif config('method').lower() == "btta":
+elif config('method').lower() == "etage":
 
     print(f"method: {config('method')}, corruption: {config('corruption')}")
     ensemble = load_ensemble(ens_addr)
