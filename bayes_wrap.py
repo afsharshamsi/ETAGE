@@ -469,26 +469,20 @@ def adapt_BTTA(particles, test_loader, device, config):
             for i in range(len(particles)):
                 optimizers[i].zero_grad()
 
-                # logits = particles[i](imgs)
-                # entropies = -(logits.softmax(1) * logits.log_softmax(1)).sum(1)
 
                 input_grads, entropies, l = compute_input_gradients(particles[i], imgs)
                 l2_norm = torch.norm(input_grads, p=2, dim=(1, 2, 3))
 
                 logits.append(l)
 
-                norms_list.extend((l2_norm).cpu().detach().numpy())
-                entropies_list.extend(entropies.cpu().detach().numpy())
+                filter_ids_1 = torch.where((entropies < 50) & (l2_norm < grad_threshold))
+                filtered_out_ids = torch.where((entropies < 0.5) & (l2_norm >= grad_threshold))
+                num_filtered_out = filtered_out_ids[0].numel()
 
-                # filter_ids_1 = torch.where((entropies < 0.5) & (l2_norm < grad_threshold))
-                # filtered_out_ids = torch.where((entropies < 0.5) & (l2_norm >= grad_threshold))
-                # num_filtered_out = filtered_out_ids[0].numel()
-                entropys = entropies
-                # entropys = entropies[filter_ids_1]
+                entropys = entropies[filter_ids_1]
 
-                x_prime = imgs
-                # x_prime = imgs[filter_ids_1]
-                # x_prime = x_prime.detach()
+                x_prime = imgs[filter_ids_1]
+                x_prime = x_prime.detach()
 
                 patch_len=4
 
@@ -504,33 +498,17 @@ def adapt_BTTA(particles, test_loader, device, config):
                 with torch.no_grad():
                     outputs_prime = model(x_prime)
                 
-                # prob_outputs = l[filter_ids_1].softmax(1)
-                # prob_outputs_prime = outputs_prime.softmax(1)
-                prob_outputs=l.softmax(1)
+                prob_outputs = l[filter_ids_1].softmax(1)
                 prob_outputs_prime = outputs_prime.softmax(1)
-
 
                 cls1 = prob_outputs.argmax(dim=1)
 
                 plpd = torch.gather(prob_outputs, dim=1, index=cls1.reshape(-1,1)) - torch.gather(prob_outputs_prime, dim=1, index=cls1.reshape(-1,1))
                 plpd = plpd.reshape(-1)
 
-                plpd_list.extend(plpd.cpu().detach().numpy())
-
                 plpd_threshold = 0.2
                 filter_ids_2 = torch.where(plpd > plpd_threshold)
                 entropys = entropys[filter_ids_2]
-
-                plpd = plpd[filter_ids_2]
-
-
-
-                # coeff = (1 * (1 / (torch.exp(((entropys.clone().detach()) - 0.4)))) +
-                #  1 * (1 / (torch.exp(-1. * plpd.clone().detach())))
-                # ) 
-                # entropys = entropys.mul(coeff)
-                
-
                 if len(entropys) !=0:
 
                     loss = entropys.mean(0)
