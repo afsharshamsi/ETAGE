@@ -575,8 +575,8 @@ def adapt_BTTA(particles, test_loader, device, config):
             "plpd_list": plpd_list,
         }
 
-        # Define the path where you want to save the JSON file
-        labels_info_path = f"metrics_cifar10_gaussian.json"
+        # path to save the JSON file
+        labels_info_path = f"Results/metrics_cifar10_gaussian.json"
 
         # # Write the dictionary to a JSON file
         with open(labels_info_path, 'w') as fp:
