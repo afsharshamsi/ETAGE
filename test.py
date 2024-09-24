@@ -145,7 +145,15 @@ def load_ensemble(ens_addr):
 if  config('method').lower()!='btta':
     ensemble = load_ensemble(ens_addr)
 
+e_margin = float(config('e_margin'))
+sar_margin_e0 = float(config('sar_margin_e0'))
+deyo_margin = float(config('deyo_margin'))
+deyo_margin_e0 = float(config('deyo_margin_e0'))
 
+e_margin *= math.log(float(config('num_class')))
+sar_margin_e0 *= math.log(float(config('num_class')))
+deyo_margin *= math.log(float(config('num_class'))) # for thresholding
+deyo_margin_e0 *= math.log(float(config('num_class'))) # for reweighting tuning
 
 if config('method').lower()=='tent':
     print(f"method: {config('method')}, corruption: {config('corruption')}")
@@ -210,7 +218,7 @@ elif config('method').lower() == "eata":
 
     print(f'time1: {end_time - st_time}')
     optimizer = torch.optim.SGD(params, float(config('learning_rate')), momentum=0.9)
-    adapt_model = eata.EATA( net, optimizer, fishers, int(config('fisher_alpha')), e_margin = float(config('e_margin')), d_margin=float(config('d_margin')))
+    adapt_model = eata.EATA( net, optimizer, fishers, int(config('fisher_alpha')), e_margin = e_margin, d_margin=float(config('d_margin')))
     acc1, acc5 = validate(test_loader, adapt_model, device, mode='eval')
 
 
@@ -228,7 +236,7 @@ elif config('method').lower() == "sar":
 
     base_optimizer = torch.optim.SGD
     optimizer = sam.SAM(params, base_optimizer, lr=float(config('learning_rate')), momentum=0.9)
-    adapt_model = sar.SAR(net, optimizer, margin_e0= float(config('sar_margin_e0')))
+    adapt_model = sar.SAR(net, optimizer, margin_e0= sar_margin_e0)
 
     batch_time = AverageMeter('Time', ':6.3f')
     top1 = AverageMeter('Acc@1', ':6.2f')
@@ -365,7 +373,7 @@ elif config('method').lower() == "deyo":
     # print(param_names)
 
     optimizer = torch.optim.SGD(params, float(config('learning_rate')), momentum=0.9)
-    adapt_model = deyo.DeYO(net, optimizer, deyo_margin= float(config('deyo_margin')), margin_e0= float(config('deyo_margin_e0')))
+    adapt_model = deyo.DeYO(net, optimizer, deyo_margin= deyo_margin, margin_e0= deyo_margin_e0)
 
     batch_time = AverageMeter('Time', ':6.3f')
     top1 = AverageMeter('Acc@1', ':6.2f')
