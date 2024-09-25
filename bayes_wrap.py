@@ -267,12 +267,9 @@ def adapt_BTTA(particles, test_loader, device, config):
     for model in particles:
         model.to(device)
 
-    lr_rates = [0.05, 0.07, 0.01, 0.08, 0.04]
-    learning_rates = lr_rates[:int(config('opt'))]
 
 
-    optimizers = [optim.SGD([p for p in model.parameters() if p.requires_grad], lr=lr, momentum=0.9 ) for model, lr in zip(particles, learning_rates)]
-    # print(f'len(optimizers): {len(optimizers)}')
+    optimizer = optim.SGD([p for p in model.parameters() if p.requires_grad], lr=float(config('lr')), momentum=0.9 ) 
 
     batch_time = AverageMeter('Time', ':6.3f')
     top1 = AverageMeter('Acc@1', ':6.2f')
@@ -345,10 +342,7 @@ def adapt_BTTA(particles, test_loader, device, config):
 
                     loss = entropys.mean(0)
                     loss.backward()
-
-
-            for optimizer in optimizers:
-                optimizer.step()
+                    optimizers[i].step()
 
     
             logits = torch.stack(logits).mean(0)
