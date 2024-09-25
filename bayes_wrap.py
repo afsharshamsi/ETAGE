@@ -134,103 +134,6 @@ def train_model_wrap_cifar(particles, trainloaders, valloader, noise_std, k, con
             file.write(f"best val_acc for model {i} is {accuracy}\n")
     print('finished')        
 
-#----------------------------------------------------------------------------------------------------------
-def train_model_wrap_places(particles, trainloaders, valloader, noise_std, k, config):
-    h_kernel = 0
-    criterion = nn.CrossEntropyLoss()
-
-    best_losses = [float('inf')] * len(particles)
-    best_val_accuracy = [float('inf')] * len(particles)
-
-    learning_rates = [0.00001, 0.00002, 0.000015, 0.000025, 0.00005]
-
-    optimizers = [optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=lr) for model, lr in zip(particles, learning_rates)]
-
-
-    for epoch in range(int(config('num_epochs'))):
-        
-        accumulated_losses = [0.0] * len(particles)
-        num_batches = len(next(iter(trainloaders)))
-
-        for j,batches in enumerate(zip(*trainloaders)):
-            inputs_list = [batch["images"] for batch in batches]
-            targets_list = [batch["labels"] for batch in batches]
-            for i, (model, imgs, lbls) in enumerate(zip(particles, inputs_list, targets_list)):
-
-                scheduler = cosine_lr(
-                                            optimizers[i],
-                                            learning_rates[i],
-                                            int(config("warmup_length")),
-                                            int(config('num_epochs')) * int(config('batch_size')) // int(config('num_grad_accumulation'))
-                                        )
-
-                step = (
-                            i // int(config('num_grad_accumulation'))
-                            + epoch * int(config('batch_size')) // int(config('num_grad_accumulation'))
-                                                            )
-
-                imgs, labels = imgs.cuda(), lbls.cuda()
-
-                optimizers[i].zero_grad()
-
-                logits = model(imgs)
-                labels = labels.squeeze(dim=1)
-
-                loss = criterion(logits, labels)
-                loss.backward()
-                accumulated_losses[i] += loss.item()
-            print(f'\rProcessing batch {j+1}/{num_batches}', end='')
-            
-            # h_kernel = update_gradiants(particles, h_kernel)
-
-            for optimizer in optimizers:
-                scheduler(step)
-                optimizer.step()
-        print(" ")
-        average_losses = [loss_sum / num_batches for loss_sum in accumulated_losses]
-        for i, avg_loss in enumerate(average_losses):
-            print(f"Epoch {epoch}, Model {i}, Average Epoch Loss: {avg_loss}")
-
-    
-        with torch.no_grad():
-            for i,model in enumerate(particles):
-
-                correct = 0
-                total = 0
-                losses_eval, step2 = 0., 0.
-                for img, lbls in valloader:
-                    img, label = img.cuda(), lbls.cuda()
-
-                    logits = model(img)
-                    label = label.squeeze(dim=1)
-                    loss_val = criterion(logits, label)
-                    losses_eval += loss_val.item()
-                    _, predicted = torch.max(logits, 1)
-                    total += label.size(0)
-                    correct += (predicted == label).sum().item()
-                    step2 += 1
-
-                accuracy = correct / total
-                loss_val_final = losses_eval / step2
-                print(f'[Epoch: {epoch}], val_acc_{i}: {accuracy:.4f}, val_loss_{i}: {loss_val_final:.4f}')
-                
-                # 3. Save Models with Best Validation Loss
-                model_idx = particles.index(model)
-                if loss_val_final < best_losses[model_idx]:
-                    best_losses[model_idx] = loss_val_final
-                    best_val_accuracy[model_idx] = accuracy
-                    best_epoch = epoch
-                    best_model = copy.deepcopy(model.state_dict())
-
-                    best_model_path = f"Model/best_model_{i}_dataset_{str(config('dataset_name'))}_series_{k}.pt"
-                    torch.save(best_model, best_model_path)
-                    print(f'Best model {i} at epoch {best_epoch} has been saved')
-
-    with open(f"Model/best_val_accuracy_{k}.txt", "w") as file:
-    # Write each accuracy value to the file, one value per line
-        for i,accuracy in enumerate(best_val_accuracy):
-            file.write(f"best val_acc for model {i} is {accuracy}\n")
-    print('finished')        
 
 
 #--------------------------------------------------------------------------------------------------
@@ -262,12 +165,9 @@ def adapt_BTTA(particles, test_loader, device, config):
     elif config('dataset_name').upper() == "CIFAR100":
         grad_threshold = 0.08 # default is 0.07
 
-
     h_kernel = 0
     for model in particles:
         model.to(device)
-
-
 
     optimizer = optim.SGD([p for p in model.parameters() if p.requires_grad], lr=float(config('lr')), momentum=0.9 ) 
 
@@ -290,9 +190,6 @@ def adapt_BTTA(particles, test_loader, device, config):
         norms_list, entropies_list, plpd_list = [], [], []
         for j, (imgs, lbls) in enumerate(test_loader):
             imgs, labels = imgs.to(device), lbls.to(device)
-
-            # imgs.requires_grad_(True)
-           
             logits = []
 
             for i in range(len(particles)):
@@ -338,13 +235,12 @@ def adapt_BTTA(particles, test_loader, device, config):
                 plpd_threshold = 0.2
                 filter_ids_2 = torch.where(plpd > plpd_threshold)
                 entropys = entropys[filter_ids_2]
+             
                 if len(entropys) !=0:
-
                     loss = entropys.mean(0)
                     loss.backward()
                     optimizers[i].step()
-
-    
+   
             logits = torch.stack(logits).mean(0)
             logits_test.append(logits.cpu().detach().numpy())
             targets_test.append(labels.cpu().detach().numpy())
@@ -352,8 +248,6 @@ def adapt_BTTA(particles, test_loader, device, config):
             acc1, acc5 = accuracy(logits, labels, topk=(1, 5))   
             top1.update(acc1[0], logits.size(0))
             top5.update(acc5[0], logits.size(0))
-
-
 
             if (j+1) % int(config('wandb_interval')) == 0:
                 progress.display(j)
@@ -374,7 +268,6 @@ def adapt_BTTA(particles, test_loader, device, config):
         correct = (preds == targets).sum().item()
         ac = correct / targets.size(0)
 
-
         num_classes = int(config('num_class'))
         ECE, MCE = calculate_metrics(logits_test, targets_test, num_classes, n_bins=15)
         brier = brier_score(logits_test, targets_test, num_classes)
@@ -383,31 +276,6 @@ def adapt_BTTA(particles, test_loader, device, config):
             '[Calibration - Default T=1] ACC = %.4f, ECE = %.4f, MCE = %.4f, Brier = %.5f, AUROC = %.4f' %
             (ac, ECE, MCE, brier, AUROC)
         )     
-
-        norms_list = np.array(norms_list).tolist()
-        entropies_list = np.array(entropies_list).tolist()
-        plpd_list = np.array(plpd_list).tolist()
-
-        print(f"Length of plpd_list: {len(plpd_list)}")
-        print(f"Length of entropy_list: {len(entropies_list)}")
-        print(f"Length of norms_list: {len(norms_list)}")
-
-
-        labels_info = {
-            "norms_list": norms_list,
-            "entropies_list": entropies_list,
-            "plpd_list": plpd_list,
-        }
-
-        # path to save the JSON file
-        labels_info_path = f"Results/metrics_cifar10_gaussian.json"
-
-        # # Write the dictionary to a JSON file
-        with open(labels_info_path, 'w') as fp:
-            json.dump(labels_info, fp, indent=2)
-
-        print(f"Saved metrics to {labels_info_path}")
-
 
     
 ###############################################################################################################
@@ -539,72 +407,7 @@ def validate(val_loader, model, device, mode='eval'):
     return top1.avg, top5.avg
 
 
-########################################################################################
-def adapt_BTTA_2(particles, test_loader, device, config):
-    seed = 2295
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-
-
-    particles.to(device)
-
-    lr_rates = [0.05, 0.07, 0.01, 0.08, 0.04]
-    learning_rates = lr_rates[:int(config('opt'))]
-
-
-    # optimizer = optim.SGD([p for p in particles.parameters() if p.requires_grad], lr=learning_rates) 
-    # print(f'len(optimizers): {len(optimizers)}')
-
-    batch_time = AverageMeter('Time', ':6.3f')
-    top1 = AverageMeter('Acc@1', ':6.2f')
-    top5 = AverageMeter('Acc@5', ':6.2f')
-    progress = ProgressMeter(
-        len(test_loader),
-        [batch_time, top1, top5],
-        prefix='Test: ')
-
-    mdl = copy.deepcopy(particles)
-
-    for epoch in range(1):
-        
-        end = time.time()
-        all_norms = []
-        num_filtered_out = 0
-        for j, (imgs, lbls) in enumerate(test_loader):
-            model = copy.deepcopy(mdl)
-            optimizer = optim.SGD([p for p in model.parameters() if p.requires_grad], lr=0.05, momentum = 0.9)
-
-
-            imgs, labels = imgs.to(device), lbls.to(device)
-
-            optimizer.zero_grad()
-            logits = model(imgs)
-
-
-            entropies = -(logits.softmax(1) * logits.log_softmax(1)).sum(1)
-
-
-            loss = entropies.mean(0)
-            loss.backward()
-
-
-
-            optimizer.step()
-
-
-            acc1, acc5 = accuracy(logits, labels, topk=(1, 5))   
-            top1.update(acc1[0], logits.size(0))
-            top5.update(acc5[0], logits.size(0))
-
-
-
-            if (j+1) % int(config('wandb_interval')) == 0:
-                progress.display(j)
-
-            batch_time.update(time.time() - end)
-            end = time.time()               
+       
 
         print(f"acc1s are {top1.avg.item()}")
         print(f"acc5s are {top5.avg.item()}")
