@@ -222,7 +222,7 @@ def adapt_BTTA(particles, test_loader, device, config):
                 x_prime = resize_o(x_prime)
 
                 with torch.no_grad():
-                    outputs_prime = model(x_prime)
+                    outputs_prime = particles[i](x_prime)
                 
                 prob_outputs = l[filter_ids_1].softmax(1)
                 prob_outputs_prime = outputs_prime.softmax(1)
