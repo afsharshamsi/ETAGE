@@ -11,7 +11,6 @@ import pandas as pd
 import numpy as np
 import torch.nn.functional as F
 from torchvision.datasets import CIFAR10, CIFAR100
-import deeplake
 from torchvision import transforms
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 from decouple import config
