@@ -409,7 +409,6 @@ def validate(val_loader, model, device, mode='eval'):
 
        
 
-        print(f"acc1s are {top1.avg.item()}")
-        print(f"acc5s are {top5.avg.item()}")
+
 
    
