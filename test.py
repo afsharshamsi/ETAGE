@@ -1,4 +1,3 @@
-
 import pickle
 import os
 import open_clip
@@ -22,7 +21,7 @@ from utilities import Paths, calculate_metrics, brier_score, calculate_auroc_mul
 from preprocessor import load_data_camelyon, load_data_cifar, load_data_places#, CorruptedCIFARDataset
 from src.heads import get_classification_head
 from src.modeling import ImageClassifier, ImageEncoder
-from bayes_wrap import validate,  generate_freezed_particles, train_model_wrap_cifar, train_model_wrap_places, adapt_BTTA, adapt_BTTA_2
+from bayes_wrap import validate,  generate_freezed_particles, adapt_BTTA
 
 
 
