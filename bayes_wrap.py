@@ -239,7 +239,7 @@ def adapt_BTTA(particles, test_loader, device, config):
                 if len(entropys) !=0:
                     loss = entropys.mean(0)
                     loss.backward()
-                    optimizers[i].step()
+                    optimizer.step()
    
             logits = torch.stack(logits).mean(0)
             logits_test.append(logits.cpu().detach().numpy())
